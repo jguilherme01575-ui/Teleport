@@ -1,0 +1,72 @@
+-- Script de Sistema de Waypoints / Teleporte Salvo
+-- Coloque em: ServerScriptService
+
+local Players = game:GetService("Players")
+
+-- Tabela para armazenar as posições salvas por jogador
+-- Formato: playerWaypoints[UserId][nome_do_ponto] = Vector3
+local playerWaypoints = {}
+
+-- Inicializa a tabela quando o jogador entra
+Players.PlayerAdded:Connect(function(player)
+	playerWaypoints[player.UserId] = {}
+end)
+
+-- Limpa os dados ao sair
+Players.PlayerRemoving:Connect(function(player)
+	playerWaypoints[player.UserId] = nil
+end)
+
+-- Função para processar os comandos do chat
+local function processCommand(player, message)
+	local args = string.split(message, " ")
+	local command = string.lower(args[1] or "")
+	local name = string.lower(args[2] or "padrao")
+
+	local character = player.Character
+	if not character or not character:FindFirstChild("HumanoidRootPart") then
+		warn("Personagem não encontrado ou inválido.")
+		return
+	end
+
+	local hrp = character.HumanoidRootPart
+	local userId = player.UserId
+
+	-- 1. Salvar local: !salvar <nome>
+	if command == "!salvar" or command == "!set" then
+		playerWaypoints[userId][name] = hrp.Position
+		print(string.format("[%s] Ponto '%s' salvo na posição: %s", player.Name, name, tostring(hrp.Position)))
+		
+	-- 2. Teleportar para o local: !tp <nome>
+	elseif command == "!tp" or command == "!ir" then
+		local savedPos = playerWaypoints[userId][name]
+		if savedPos then
+			-- Move o jogador preservando a rotação
+			hrp.CFrame = CFrame.new(savedPos + Vector3.new(0, 3, 0))
+			print(string.format("[%s] Teleportado para '%s'", player.Name, name))
+		else
+			warn(string.format("[%s] Ponto '%s' não existe!", player.Name, name))
+		end
+
+	-- 3. Listar locais salvos: !locais
+	elseif command == "!locais" or command == "!pontos" then
+		print("--- Seus Pontos Salvos ---")
+		for wpName, pos in pairs(playerWaypoints[userId]) do
+			print(string.format("- %s: %s", wpName, tostring(pos)))
+		end
+
+	-- 4. Deletar local: !deletar <nome>
+	elseif command == "!deletar" or command == "!del" then
+		if playerWaypoints[userId][name] then
+			playerWaypoints[userId][name] = nil
+			print(string.format("[%s] Ponto '%s' removido.", player.Name, name))
+		end
+	end
+end
+
+-- Conecta o chat do jogador ao sistema de comandos
+Players.PlayerAdded:Connect(function(player)
+	player.Chatted:Connect(function(message)
+		processCommand(player, message)
+	end)
+end)
